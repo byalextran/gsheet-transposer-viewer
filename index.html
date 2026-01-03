@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            name="description"
+            content="Transform Google Sheets into a card-based record viewer. Browse spreadsheet rows one at a time with a clean, mobile-friendly interface."
+        />
+        <title>Google Sheet Transposer and Viewer</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Oxygen, Ubuntu, sans-serif;
+                background: #f5f5f5;
+                min-height: 100vh;
+                padding: 20px;
+            }
+
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+            }
+
+            h1 {
+                text-align: center;
+                color: #333;
+                margin-bottom: 24px;
+                font-size: 1.5rem;
+            }
+
+            .input-section {
+                background: white;
+                padding: 20px;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                margin-bottom: 20px;
+            }
+
+            .input-group {
+                display: flex;
+                gap: 10px;
+            }
+
+            .input-group input {
+                flex: 1;
+                padding: 12px 16px;
+                font-size: 16px;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                outline: none;
+                transition: border-color 0.2s;
+            }
+
+            .input-group input:focus {
+                border-color: #4285f4;
+            }
+
+            .input-group button {
+                padding: 12px 24px;
+                font-size: 16px;
+                font-weight: 600;
+                background: #4285f4;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+
+            .input-group button:hover {
+                background: #3367d6;
+            }
+
+            .input-group button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+
+            .status {
+                text-align: center;
+                padding: 40px 20px;
+                color: #666;
+            }
+
+            .status.error {
+                color: #d93025;
+            }
+
+            .record-section {
+                display: none;
+            }
+
+            .record-section.active {
+                display: block;
+            }
+
+            .record-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+            }
+
+            .record-counter {
+                font-size: 14px;
+                color: #666;
+                font-weight: 500;
+            }
+
+            .keyboard-hint {
+                font-size: 12px;
+                color: #999;
+            }
+
+            .record-card {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }
+
+            .field {
+                padding: 16px 20px;
+                border-bottom: 1px solid #f0f0f0;
+                transition: background-color 0.15s ease;
+            }
+
+            .field-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 6px;
+            }
+
+            .hide-field-btn {
+                font-size: 24px;
+                margin: -8px;
+                cursor: pointer;
+                background: none;
+                border: none;
+                color: #999;
+                opacity: 0;
+                transition:
+                    opacity 0.15s ease,
+                    color 0.15s ease;
+                flex-shrink: 0;
+                line-height: 1;
+            }
+
+            .field:hover .hide-field-btn {
+                opacity: 1;
+            }
+
+            .hide-field-btn:hover {
+                color: #333;
+            }
+
+            /* Always show X on touch devices */
+            @media (hover: none) {
+                .hide-field-btn {
+                    opacity: 1;
+                }
+            }
+
+            .field:hover {
+                background-color: #e8f0fe;
+            }
+
+            .field:last-child {
+                border-bottom: none;
+            }
+
+            .field-label {
+                font-size: 12px;
+                font-weight: 600;
+                color: #666;
+                letter-spacing: 0.5px;
+            }
+
+            .field-value {
+                font-size: 18px;
+                color: #333;
+                word-break: break-word;
+            }
+
+            .field-value:empty::after {
+                content: "—";
+                color: #ccc;
+            }
+
+            .navigation {
+                display: flex;
+                justify-content: center;
+                gap: 16px;
+                margin-top: 20px;
+            }
+
+            .nav-btn {
+                width: 56px;
+                height: 56px;
+                font-size: 24px;
+                background: white;
+                border: 2px solid #e0e0e0;
+                border-radius: 50%;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .nav-btn:hover:not(:disabled) {
+                border-color: #4285f4;
+                color: #4285f4;
+            }
+
+            .nav-btn:disabled {
+                opacity: 0.3;
+                cursor: not-allowed;
+            }
+
+            @media (max-width: 480px) {
+                body {
+                    padding: 12px;
+                }
+
+                h1 {
+                    font-size: 1.25rem;
+                }
+
+                .input-group {
+                    flex-direction: column;
+                }
+
+                .input-group button {
+                    width: 100%;
+                }
+
+                .keyboard-hint {
+                    display: none;
+                }
+
+                .nav-btn {
+                    width: 64px;
+                    height: 64px;
+                    font-size: 28px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Google Sheet Transposer &amp; Viewer</h1>
+
+            <div class="input-section">
+                <div class="input-group">
+                    <input
+                        type="text"
+                        id="sheetUrl"
+                        placeholder="Paste a public Google Sheet URL ..."
+                    />
+                    <button id="loadBtn">Load</button>
+                </div>
+            </div>
+
+            <div id="status" class="status" style="display: none"></div>
+
+            <div id="recordSection" class="record-section">
+                <div class="record-header">
+                    <span id="recordCounter" class="record-counter"></span>
+                    <span class="keyboard-hint"
+                        >Use arrow keys to navigate</span
+                    >
+                </div>
+                <div id="recordCard" class="record-card"></div>
+                <div class="navigation">
+                    <button id="prevBtn" class="nav-btn">&larr;</button>
+                    <button id="nextBtn" class="nav-btn">&rarr;</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const sheetUrlInput = document.getElementById("sheetUrl");
+            const loadBtn = document.getElementById("loadBtn");
+            const statusDiv = document.getElementById("status");
+            const recordSection = document.getElementById("recordSection");
+            const recordCounter = document.getElementById("recordCounter");
+            const recordCard = document.getElementById("recordCard");
+            const prevBtn = document.getElementById("prevBtn");
+            const nextBtn = document.getElementById("nextBtn");
+
+            let headers = [];
+            let records = [];
+            let currentIndex = 0;
+            let hiddenColumns = new Set();
+
+            // Check for sheet URL in query params on page load
+            function checkUrlParams() {
+                const params = new URLSearchParams(window.location.search);
+                const sheetUrl = params.get("sheet");
+                const hideParam = params.get("hide");
+
+                if (hideParam) {
+                    hiddenColumns = new Set(
+                        hideParam
+                            .split(",")
+                            .map((s) => parseInt(s.trim(), 10))
+                            .filter((n) => !isNaN(n)),
+                    );
+                }
+
+                if (sheetUrl) {
+                    sheetUrlInput.value = sheetUrl;
+                    loadSheet();
+                }
+            }
+
+            // Extract sheet ID from various Google Sheets URL formats
+            function extractSheetId(url) {
+                const patterns = [
+                    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
+                    /key=([a-zA-Z0-9-_]+)/,
+                ];
+                for (const pattern of patterns) {
+                    const match = url.match(pattern);
+                    if (match) return match[1];
+                }
+                return null;
+            }
+
+            // Parse CSV text into array of arrays
+            function parseCSV(text) {
+                const rows = [];
+                let currentRow = [];
+                let currentCell = "";
+                let insideQuotes = false;
+
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    const nextChar = text[i + 1];
+
+                    if (insideQuotes) {
+                        if (char === '"' && nextChar === '"') {
+                            currentCell += '"';
+                            i++;
+                        } else if (char === '"') {
+                            insideQuotes = false;
+                        } else {
+                            currentCell += char;
+                        }
+                    } else {
+                        if (char === '"') {
+                            insideQuotes = true;
+                        } else if (char === ",") {
+                            currentRow.push(currentCell);
+                            currentCell = "";
+                        } else if (
+                            char === "\n" ||
+                            (char === "\r" && nextChar === "\n")
+                        ) {
+                            currentRow.push(currentCell);
+                            rows.push(currentRow);
+                            currentRow = [];
+                            currentCell = "";
+                            if (char === "\r") i++;
+                        } else if (char === "\r") {
+                            currentRow.push(currentCell);
+                            rows.push(currentRow);
+                            currentRow = [];
+                            currentCell = "";
+                        } else {
+                            currentCell += char;
+                        }
+                    }
+                }
+
+                // Handle last cell/row
+                if (currentCell || currentRow.length > 0) {
+                    currentRow.push(currentCell);
+                    rows.push(currentRow);
+                }
+
+                return rows;
+            }
+
+            // Fetch and load the sheet data using JSONP (bypasses CORS)
+            function loadSheet() {
+                const url = sheetUrlInput.value.trim();
+                if (!url) {
+                    showError("Please enter a Google Sheet URL");
+                    return;
+                }
+
+                const sheetId = extractSheetId(url);
+                if (!sheetId) {
+                    showError("Invalid Google Sheet URL");
+                    return;
+                }
+
+                showStatus("Loading...");
+                loadBtn.disabled = true;
+
+                // Clean up any previous callback
+                if (window.gsheetCallback) {
+                    delete window.gsheetCallback;
+                }
+
+                // Remove any previous script tag
+                const oldScript = document.getElementById("gsheet-jsonp");
+                if (oldScript) oldScript.remove();
+
+                // Set up JSONP callback
+                window.gsheetCallback = function (response) {
+                    loadBtn.disabled = false;
+
+                    try {
+                        if (response.status === "error") {
+                            throw new Error(
+                                "Failed to fetch sheet. Make sure it is publicly accessible.",
+                            );
+                        }
+
+                        const table = response.table;
+                        if (!table || !table.cols || !table.rows) {
+                            throw new Error("Invalid sheet data");
+                        }
+
+                        // Extract headers from cols
+                        headers = table.cols.map(
+                            (col) => col.label || col.id || "",
+                        );
+
+                        // Extract records from rows
+                        records = table.rows
+                            .map((row) =>
+                                row.c.map((cell) =>
+                                    cell
+                                        ? cell.v !== null
+                                            ? String(cell.v)
+                                            : ""
+                                        : "",
+                                ),
+                            )
+                            .filter((row) => row.some((cell) => cell.trim()));
+
+                        if (records.length === 0) {
+                            throw new Error("No data records found");
+                        }
+
+                        // Update URL with sheet parameter (preserve hide param)
+                        const newUrl = new URL(window.location.href);
+                        newUrl.searchParams.set("sheet", url);
+                        if (hiddenColumns.size > 0) {
+                            newUrl.searchParams.set(
+                                "hide",
+                                [...hiddenColumns]
+                                    .sort((a, b) => a - b)
+                                    .join(","),
+                            );
+                        } else {
+                            newUrl.searchParams.delete("hide");
+                        }
+                        history.replaceState(null, "", newUrl);
+
+                        currentIndex = 0;
+                        showRecord();
+                    } catch (error) {
+                        showError(error.message);
+                    }
+                };
+
+                // Create script tag for JSONP request
+                const script = document.createElement("script");
+                script.id = "gsheet-jsonp";
+                script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:gsheetCallback`;
+                script.onerror = function () {
+                    loadBtn.disabled = false;
+                    showError(
+                        "Failed to load sheet. Make sure the URL is correct and the sheet is publicly accessible.",
+                    );
+                };
+                document.body.appendChild(script);
+            }
+
+            // Display current record
+            function showRecord() {
+                statusDiv.style.display = "none";
+                recordSection.classList.add("active");
+
+                recordCounter.textContent = `Record ${currentIndex + 1} of ${records.length}`;
+
+                const record = records[currentIndex];
+                // Build array of visible fields with their original indices
+                const visibleFields = headers
+                    .map((header, i) => ({
+                        header,
+                        value: record[i],
+                        originalIndex: i,
+                    }))
+                    .filter((field) => !hiddenColumns.has(field.originalIndex));
+
+                recordCard.innerHTML = visibleFields
+                    .map(
+                        (field) => `
+        <div class="field">
+          <div class="field-header">
+            <div class="field-label">${escapeHtml(field.header)}</div>
+            <button class="hide-field-btn" onclick="hideField(${field.originalIndex})">&times;</button>
+          </div>
+          <div class="field-value">${escapeHtml(formatDate(field.value || ""))}</div>
+        </div>
+      `,
+                    )
+                    .join("");
+
+                prevBtn.disabled = currentIndex === 0;
+                nextBtn.disabled = currentIndex === records.length - 1;
+
+                // Scroll to the record counter
+                recordCounter.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                });
+            }
+
+            // Show status message
+            function showStatus(message) {
+                statusDiv.textContent = message;
+                statusDiv.className = "status";
+                statusDiv.style.display = "block";
+                recordSection.classList.remove("active");
+            }
+
+            // Show error message
+            function showError(message) {
+                statusDiv.textContent = message;
+                statusDiv.className = "status error";
+                statusDiv.style.display = "block";
+                recordSection.classList.remove("active");
+            }
+
+            // Escape HTML to prevent XSS
+            function escapeHtml(text) {
+                const div = document.createElement("div");
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // Format date as "March 15, 1981"
+            function formatDate(value) {
+                if (!value) return value;
+
+                const months = [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ];
+
+                // Check for Google Sheets Date format: Date(year,month,day,...)
+                const gsheetMatch = value.match(/^Date\((\d+),(\d+),(\d+)/);
+                if (gsheetMatch) {
+                    const year = parseInt(gsheetMatch[1]);
+                    const month = parseInt(gsheetMatch[2]); // Already 0-indexed
+                    const day = parseInt(gsheetMatch[3]);
+                    return `${months[month]} ${day}, ${year}`;
+                }
+
+                // Try other date patterns
+                let date = null;
+
+                // ISO format: 1981-03-15
+                const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (isoMatch) {
+                    date = new Date(
+                        parseInt(isoMatch[1]),
+                        parseInt(isoMatch[2]) - 1,
+                        parseInt(isoMatch[3]),
+                    );
+                }
+                // MM/DD/YYYY
+                const usMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if (!date && usMatch) {
+                    date = new Date(
+                        parseInt(usMatch[3]),
+                        parseInt(usMatch[1]) - 1,
+                        parseInt(usMatch[2]),
+                    );
+                }
+                // MM/DD/YY
+                const shortMatch = value.match(
+                    /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/,
+                );
+                if (!date && shortMatch) {
+                    let year = parseInt(shortMatch[3]);
+                    year = year < 50 ? 2000 + year : 1900 + year;
+                    date = new Date(
+                        year,
+                        parseInt(shortMatch[1]) - 1,
+                        parseInt(shortMatch[2]),
+                    );
+                }
+
+                if (date && !isNaN(date.getTime())) {
+                    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+                }
+
+                return value;
+            }
+
+            // Hide a field by column index
+            function hideField(columnIndex) {
+                hiddenColumns.add(columnIndex);
+                updateUrlWithHideParam();
+                showRecord();
+            }
+
+            // Update URL with current hide parameter
+            function updateUrlWithHideParam() {
+                const newUrl = new URL(window.location.href);
+                if (hiddenColumns.size > 0) {
+                    newUrl.searchParams.set(
+                        "hide",
+                        [...hiddenColumns].sort((a, b) => a - b).join(","),
+                    );
+                } else {
+                    newUrl.searchParams.delete("hide");
+                }
+                history.replaceState(null, "", newUrl);
+            }
+
+            // Navigation
+            function goToPrev() {
+                if (currentIndex > 0) {
+                    currentIndex--;
+                    showRecord();
+                }
+            }
+
+            function goToNext() {
+                if (currentIndex < records.length - 1) {
+                    currentIndex++;
+                    showRecord();
+                }
+            }
+
+            // Event listeners
+            loadBtn.addEventListener("click", loadSheet);
+
+            sheetUrlInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") loadSheet();
+            });
+
+            prevBtn.addEventListener("click", goToPrev);
+            nextBtn.addEventListener("click", goToNext);
+
+            document.addEventListener("keydown", (e) => {
+                if (records.length === 0) return;
+                if (e.key === "ArrowLeft") goToPrev();
+                if (e.key === "ArrowRight") goToNext();
+            });
+
+            // Auto-load sheet from URL params on page load
+            checkUrlParams();
+        </script>
+    </body>
+</html>

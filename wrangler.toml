@@ -1,0 +1,2 @@
+name = "gsheet-transposer-viewer"
+pages_build_output_dir = "."
