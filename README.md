@@ -2,6 +2,8 @@
 
 A simple web app that transforms Google Sheets data into a card-based record viewer. Instead of viewing data in a spreadsheet grid, browse through records one at a time with each column displayed as a labeled field.
 
+[View Demo](https://transposer.alextran.org)
+
 ## Features
 
 - Paste any public Google Sheet URL to load data
